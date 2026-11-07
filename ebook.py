@@ -163,7 +163,7 @@ def parse_novel_chapters(book_name, convert_to_trad=False):
         
     # Regex matching common Chinese & English novel chapter headings
     pattern = re.compile(
-        r"(?m)^[ 	　]*(?:第[0-9零一二三四五六七八九十百千万萬千兩]+[章節回卷集部篇]|Chapter\s+\d+|CHAPTER\s+\d+|【第.+?章】).*$"
+        r"(?m)^[ \t　]*(?:第[0-9零一二三四五六七八九十百千万萬千兩]+[章節回卷集部篇]|Chapter\s+\d+|CHAPTER\s+\d+|【第.+?章】).*$"
     )
     matches = list(pattern.finditer(text))
     
@@ -343,8 +343,7 @@ with st.sidebar:
 
 # --- PREPARE CHAPTER HTML ---
 current_title, current_body = chapters[st.session_state.chapter_idx]
-paragraphs = [p.strip() for p in current_body.split("
-") if p.strip()]
+paragraphs = [p.strip() for p in current_body.splitlines() if p.strip()]
 paragraphs_json = json.dumps(paragraphs, ensure_ascii=False)
 
 theme_map = {
