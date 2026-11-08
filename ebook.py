@@ -10,7 +10,7 @@ from opencc import OpenCC
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Hongguo Reader | 紅果私人書屋",
+    page_title="My Books",
     page_icon="📖",
     layout="wide",
     initial_sidebar_state="expanded"
