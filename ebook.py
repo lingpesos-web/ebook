@@ -38,7 +38,7 @@ def github_push_file(file_path, content_bytes, commit_message):
     """Push a local file (book or progress.json) directly to GitHub repo."""
     cfg = get_github_config()
     if not cfg:
-        return False, "GitHub secrets not configured (Local Mode)"
+        return False, "Local Mode (Set GitHub Secrets for Cloud Sync)"
     
     url = f"https://api.github.com/repos/{cfg['repo']}/contents/{file_path}"
     headers = {
@@ -46,7 +46,6 @@ def github_push_file(file_path, content_bytes, commit_message):
         "Accept": "application/vnd.github.v3+json"
     }
     
-    # Check if file exists to retrieve its SHA
     r = requests.get(url, headers=headers, params={"ref": cfg["branch"]})
     sha = r.json().get("sha") if r.status_code == 200 else None
     
@@ -151,7 +150,7 @@ def decode_txt_bytes(raw_bytes):
 def parse_novel_chapters(book_name, convert_to_trad=False):
     path = os.path.join(BOOKS_DIR, book_name)
     if not os.path.exists(path):
-        return [("Empty", "Book file not found.")]
+        return [{"title": "Empty", "paras": ["Book file not found."]}]
         
     with open(path, "rb") as f:
         raw_bytes = f.read()
@@ -161,7 +160,6 @@ def parse_novel_chapters(book_name, convert_to_trad=False):
         cc = OpenCC("s2hk")
         text = cc.convert(text)
         
-    # Regex matching common Chinese & English novel chapter headings
     pattern = re.compile(
         r"(?m)^[ \t　]*(?:第[0-9零一二三四五六七八九十百千万萬千兩]+[章節回卷集部篇]|Chapter\s+\d+|CHAPTER\s+\d+|【第.+?章】).*$"
     )
@@ -169,24 +167,29 @@ def parse_novel_chapters(book_name, convert_to_trad=False):
     
     chapters = []
     if not matches:
-        # Fallback: Slice into 4,500-character segments if no chapter headers exist
         chunk_size = 4500
         for idx, i in enumerate(range(0, len(text), chunk_size)):
-            chapters.append((f"Part {idx + 1}", text[i:i + chunk_size]))
+            segment = text[i:i + chunk_size]
+            paras = [p.strip() for p in segment.splitlines() if p.strip()]
+            chapters.append({"title": f"Part {idx + 1}", "paras": paras})
         return chapters
         
-    # Include prologue if text exists before first chapter heading
     if matches[0].start() > 100:
         prologue = text[:matches[0].start()].strip()
         if prologue:
-            chapters.append(("序章 / Prologue", prologue))
+            paras = [p.strip() for p in prologue.splitlines() if p.strip()]
+            if paras:
+                chapters.append({"title": "序章 / Prologue", "paras": paras})
             
     for i, m in enumerate(matches):
         title = m.group(0).strip()
         start_pos = m.end()
         end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         body = text[start_pos:end_pos].strip()
-        chapters.append((title, body))
+        paras = [p.strip() for p in body.splitlines() if p.strip()]
+        if not paras:
+            paras = ["（本章無正文內容）"]
+        chapters.append({"title": title, "paras": paras})
         
     return chapters
 
@@ -197,33 +200,25 @@ prefs = progress_db.get("_preferences", {})
 # Ensure a sample welcome book exists on first launch
 sample_path = os.path.join(BOOKS_DIR, "00_Welcome_Guide.txt")
 if not os.path.exists(sample_path):
-    sample_text = """第1章 歡迎使用紅果私人書屋 (Welcome Guide)
-歡迎來到您的專屬雲端電子書閱讀器！
-
-【核心操作指南】
-1. 觸控與點擊暫停：在閱讀區域內，直接用手指輕觸螢幕（iPad 或觸控電腦）或點擊滑鼠，即可立即「開始 / 暫停」自動滾動。您也可以隨時按鍵盤空白鍵（Spacebar）控制。
-2. 跨裝置雲端同步：當您切換章節或點擊左側邊欄的「儲存並同步進度」時，系統會自動將您的閱讀位置寫入 GitHub，無論在書房電腦、睡房電腦或 iPad 打開，都能無縫接續閱讀。
-3. 語音朗讀 (Read Aloud)：點擊上方控制列的「🎧 朗讀」按鈕，系統會調用裝置內建的自然語音逐句朗讀，並自動高亮顯示當前句子及跟隨滾動。
-4. 繁簡一鍵轉換：左側邊欄支援即時將簡體 TXT 小說轉換為繁體中文（香港標準字體）。
-
-第2章 自動滾動與護眼模式測試
-這是一段測試自動滾動與視覺舒適度的示範段落。
-
-您可以透過上方控制列或左側設定欄，自由調整：
-・滾動速度（Speed Slider：支援極慢速細讀至快速瀏覽）
-・字體大小（Font Size：16px 至 40px）
-・螢幕亮度調節（Brightness：內建柔和暗化遮罩，深夜閱讀不刺眼）
-・四大主題背景：日間純白（Day）、夜間深邃黑（Dark）、經典羊皮紙（Sepia）、紅果護眼綠（Eye-Care Green）。
-
-當自動滾動到達本章底部時，您可以直接點擊「下一章」按鈕，繼續享受沉浸式閱讀體驗！"""
+    sample_lines = [
+        "第1章 歡迎使用紅果私人書屋 v2.0 (無縫跨章滾動版)",
+        "歡迎來到您的專屬雲端電子書閱讀器！",
+        "【v2.0 全新升級亮點】",
+        "1. 無縫跨章自動滾動：現在當您開啟「▶️ 自動滾動」後，系統會在接近章節底部時，自動無縫接續載入下一章（第1章 → 第2章 → 第3章……），永遠不會中途停頓，直到您輕觸螢幕暫停為止！",
+        "2. 速度與背景永久記憶：您在上方控制列調整的「滾動速度、字體大小、亮度、背景主題」，會即時自動鎖定保存在瀏覽器內，換章節或重開網頁都不會跳回預設值。",
+        "3. 全螢幕隨時召喚側邊欄：左上角常駐「展開/收起側邊欄」按鈕，收起側邊欄全螢幕閱讀時，隨時點一下左上角即可叫回書庫選單。上方控制列亦內建「📑 目錄」按鈕，免開側邊欄也能秒速跳章！",
+        "第2章 跨章無縫接續測試段落",
+        "您現在看到的是第2章的內容！當剛剛從第1章往下滾動時，系統已經自動把第2章接在下方，您的滾動速度、背景顏色與字體大小完全保持不變。",
+        "無論在 iPad、睡房觸控電腦或書房電腦上，只要用手指輕觸文字區域任意位置（或按鍵盤 Space 鍵），即可隨時暫停或繼續滾動。",
+        "祝您享受最流暢的沉浸式閱讀體驗！"
+    ]
     with open(sample_path, "w", encoding="utf-8") as f:
-        f.write(sample_text)
+        f.write("\n\n".join(sample_lines))
 
 # --- SIDEBAR CONTROLS ---
 with st.sidebar:
-    st.markdown("### 📖 紅果私人書屋")
+    st.markdown("### 📖 紅果私人書屋 v2")
     
-    # Cloud Status Badge
     if get_github_config():
         st.caption("🟢 GitHub 雲端同步已啟用")
     else:
@@ -252,121 +247,105 @@ with st.sidebar:
 
     # 3. Language Conversion Toggle (Simplified <-> Traditional)
     trad_toggle = st.toggle("繁體中文顯示 (簡轉繁)", value=prefs.get("trad_chinese", True))
+    if trad_toggle != prefs.get("trad_chinese", True):
+        prefs["trad_chinese"] = trad_toggle
+        progress_db["_preferences"] = prefs
+        save_progress(progress_db, sync_cloud=False)
 
     # Parse Chapters
     chapters = parse_novel_chapters(selected_book, convert_to_trad=trad_toggle)
-    chapter_titles = [c[0] for c in chapters]
+    chapter_titles = [c["title"] for c in chapters]
 
     # Load saved chapter & scroll ratio for this specific book
     book_state = progress_db.get(selected_book, {"chapter_idx": 0, "scroll_pct": 0.0})
-    saved_chap_idx = min(book_state.get("chapter_idx", 0), len(chapters) - 1)
+    saved_chap_idx = min(book_state.get("chapter_idx", 0), max(0, len(chapters) - 1))
 
-    # Handle Next/Prev buttons via session state
     if "current_book" not in st.session_state or st.session_state.current_book != selected_book:
         st.session_state.current_book = selected_book
         st.session_state.chapter_idx = saved_chap_idx
         st.session_state.scroll_pct = book_state.get("scroll_pct", 0.0)
+        progress_db["_last_book"] = selected_book
+        save_progress(progress_db, sync_cloud=False)
 
-    # Chapter selector dropdown
-    selected_chap_idx = st.selectbox(
-        "📑 章節跳轉",
+    st.divider()
+    st.markdown("#### ☁️ 跨裝置雲端書籤")
+    st.caption("在同一部裝置上，您的章節、滾動位置、速度與背景主題會**每秒自動記憶**。若要換去另一部電腦或 iPad 接續看，請在下方同步章節：")
+    
+    sync_chap_idx = st.selectbox(
+        "📑 選擇要同步到雲端的章節",
         range(len(chapter_titles)),
-        format_func=lambda i: chapter_titles[i],
+        format_func=lambda i: f"({i+1}/{len(chapter_titles)}) {chapter_titles[i]}",
         index=st.session_state.chapter_idx
     )
-    if selected_chap_idx != st.session_state.chapter_idx:
-        st.session_state.chapter_idx = selected_chap_idx
-        st.session_state.scroll_pct = 0.0
-        progress_db[selected_book] = {"chapter_idx": selected_chap_idx, "scroll_pct": 0.0}
-        progress_db["_last_book"] = selected_book
-        save_progress(progress_db, sync_cloud=True)
-        st.rerun()
-
-    # Chapter Navigation Buttons
-    col_prev, col_next = st.columns(2)
-    with col_prev:
-        if st.button("⬅️ 上一章", use_container_width=True, disabled=(st.session_state.chapter_idx <= 0)):
-            st.session_state.chapter_idx -= 1
-            st.session_state.scroll_pct = 0.0
-            progress_db[selected_book] = {"chapter_idx": st.session_state.chapter_idx, "scroll_pct": 0.0}
-            progress_db["_last_book"] = selected_book
-            save_progress(progress_db, sync_cloud=True)
-            st.rerun()
-    with col_next:
-        if st.button("下一章 ➡️", use_container_width=True, disabled=(st.session_state.chapter_idx >= len(chapters) - 1)):
-            st.session_state.chapter_idx += 1
-            st.session_state.scroll_pct = 0.0
-            progress_db[selected_book] = {"chapter_idx": st.session_state.chapter_idx, "scroll_pct": 0.0}
-            progress_db["_last_book"] = selected_book
-            save_progress(progress_db, sync_cloud=True)
-            st.rerun()
-
-    st.divider()
-    st.markdown("#### ⚙️ 預設閱讀偏好")
-    theme_choice = st.selectbox(
-        "🎨 背景主題",
-        ["夜間深黑 (Dark)", "日間純白 (Day)", "紅果護眼綠 (Green)", "溫潤羊皮紙 (Sepia)"],
-        index=prefs.get("theme_idx", 0)
-    )
-    default_speed = st.slider("🚀 預設滾動速度", 1, 100, prefs.get("speed", 28))
-    default_font = st.slider("🔠 預設字體大小 (px)", 16, 42, prefs.get("font_size", 24))
-    default_bright = st.slider("🔆 預設螢幕亮度 (%)", 20, 100, prefs.get("brightness", 90))
-    default_tts_rate = st.slider("🗣️ 語音朗讀語速", 0.5, 2.0, prefs.get("tts_rate", 1.1), 0.1)
-
-    # Bookmark & Cloud Sync Section
-    st.divider()
-    st.markdown("#### ☁️ 跨裝置書籤同步")
-    manual_pct = st.number_input(
-        "本章閱讀進度 (%)",
+    sync_pct = st.number_input(
+        "本章進度 (%)",
         min_value=0.0, max_value=100.0,
         value=float(round(st.session_state.scroll_pct, 1)),
-        step=5.0,
-        help="在閱讀器內會即時顯示目前進度%，可在此鎖定或直接儲存章節進度"
+        step=5.0
     )
-    if st.button("💾 儲存設定與雲端書籤", type="primary", use_container_width=True):
+    if st.button("💾 儲存並同步雲端書籤", type="primary", use_container_width=True):
+        st.session_state.chapter_idx = sync_chap_idx
+        st.session_state.scroll_pct = sync_pct
         progress_db["_last_book"] = selected_book
         progress_db[selected_book] = {
-            "chapter_idx": st.session_state.chapter_idx,
-            "scroll_pct": manual_pct
-        }
-        theme_options = ["夜間深黑 (Dark)", "日間純白 (Day)", "紅果護眼綠 (Green)", "溫潤羊皮紙 (Sepia)"]
-        progress_db["_preferences"] = {
-            "trad_chinese": trad_toggle,
-            "theme_idx": theme_options.index(theme_choice),
-            "speed": default_speed,
-            "font_size": default_font,
-            "brightness": default_bright,
-            "tts_rate": default_tts_rate
+            "chapter_idx": sync_chap_idx,
+            "scroll_pct": sync_pct
         }
         ok, msg = save_progress(progress_db, sync_cloud=True)
-        st.toast(f"✅ 已同步至雲端！({msg})")
+        st.toast(f"✅ 已同步至 GitHub 雲端！({msg})")
+        st.rerun()
 
-# --- PREPARE CHAPTER HTML ---
-current_title, current_body = chapters[st.session_state.chapter_idx]
-paragraphs = [p.strip() for p in current_body.splitlines() if p.strip()]
-paragraphs_json = json.dumps(paragraphs, ensure_ascii=False)
-
-theme_map = {
-    "夜間深黑 (Dark)": "dark",
-    "日間純白 (Day)": "day",
-    "紅果護眼綠 (Green)": "green",
-    "溫潤羊皮紙 (Sepia)": "sepia"
-}
-initial_theme = theme_map.get(theme_choice, "dark")
-
-# Trim Streamlit default top padding so the reader feels full-screen on iPad & PC
+# --- KEEP SIDEBAR EXPAND/COLLAPSE BUTTON ALWAYS VISIBLE ON TOUCHSCREENS ---
 st.markdown("""
 <style>
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 0.4rem !important;
         padding-bottom: 0rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
         max-width: 100% !important;
     }
-    header {visibility: hidden;}
+    /* Keep header transparent so the sidebar toggle button is ALWAYS touchable */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        height: 2.5rem !important;
+        pointer-events: none;
+    }
+    header[data-testid="stHeader"] * {
+        pointer-events: auto;
+    }
+    /* Hide the right-side deploy/menu buttons, keep only the left sidebar toggle */
+    .stAppDeployButton, [data-testid="stToolbarActions"], [data-testid="stStatusWidget"] {
+        display: none !important;
+    }
+    /* Style the collapsed sidebar '>' button so it is large & easy to tap on iPad/PC */
+    [data-testid="collapsedControl"], [data-testid="stSidebarCollapsedControl"] {
+        background-color: rgba(255, 94, 58, 0.92) !important;
+        color: #ffffff !important;
+        border-radius: 0 22px 22px 0 !important;
+        padding: 6px 12px !important;
+        top: 8px !important;
+        left: 0px !important;
+        z-index: 999999 !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.35) !important;
+    }
+    [data-testid="collapsedControl"] svg, [data-testid="stSidebarCollapsedControl"] svg {
+        fill: #ffffff !important;
+        stroke: #ffffff !important;
+        width: 22px !important;
+        height: 22px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- INTERACTIVE HONGGUO READER CANVAS (HTML/JS/CSS) ---
+# Serialize all chapters for seamless client-side continuous scrolling
+chapters_json = json.dumps(chapters, ensure_ascii=False)
+default_speed = int(prefs.get("speed", 28))
+default_font = int(prefs.get("font_size", 24))
+default_bright = int(prefs.get("brightness", 90))
+default_tts_rate = float(prefs.get("tts_rate", 1.1))
+
+# --- INTERACTIVE HONGGUO READER CANVAS (SEAMLESS INFINITE CHAPTER SCROLL) ---
 reader_html = f"""
 <!DOCTYPE html>
 <html>
@@ -376,38 +355,43 @@ reader_html = f"""
 <style>
     :root {{
         --bg-color: #121212;
-        --text-color: #d4d4d4;
-        --accent-color: #ff5e3a;
-        --bar-bg: rgba(28, 28, 30, 0.94);
-        --highlight-bg: rgba(255, 94, 58, 0.25);
+        --text-color: #cfcfcf;
+        --accent-color: #ff6b4a;
+        --bar-bg: rgba(26, 26, 28, 0.96);
+        --highlight-bg: rgba(255, 107, 74, 0.25);
+        --drawer-bg: #1e1e20;
     }}
     body.theme-day {{
         --bg-color: #f8f9fa;
         --text-color: #212529;
         --accent-color: #d9480f;
-        --bar-bg: rgba(255, 255, 255, 0.94);
+        --bar-bg: rgba(255, 255, 255, 0.96);
         --highlight-bg: rgba(255, 193, 7, 0.35);
+        --drawer-bg: #ffffff;
     }}
     body.theme-green {{
         --bg-color: #cce8cf;
         --text-color: #1b3320;
         --accent-color: #2b8a3e;
-        --bar-bg: rgba(220, 242, 222, 0.95);
+        --bar-bg: rgba(220, 242, 222, 0.96);
         --highlight-bg: rgba(43, 138, 62, 0.22);
+        --drawer-bg: #daf0dc;
     }}
     body.theme-sepia {{
         --bg-color: #f4ecd8;
         --text-color: #3c2f2f;
         --accent-color: #b05b3b;
-        --bar-bg: rgba(248, 241, 224, 0.95);
+        --bar-bg: rgba(248, 241, 224, 0.96);
         --highlight-bg: rgba(176, 91, 59, 0.22);
+        --drawer-bg: #efe4c8;
     }}
     body.theme-dark {{
         --bg-color: #121212;
         --text-color: #cfcfcf;
         --accent-color: #ff6b4a;
-        --bar-bg: rgba(26, 26, 28, 0.95);
+        --bar-bg: rgba(26, 26, 28, 0.96);
         --highlight-bg: rgba(255, 107, 74, 0.25);
+        --drawer-bg: #1e1e20;
     }}
 
     * {{
@@ -421,7 +405,7 @@ reader_html = f"""
         background-color: var(--bg-color);
         color: var(--text-color);
         font-family: -apple-system, BlinkMacSystemFont, "PingFang HK", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
-        transition: background-color 0.25s ease, color 0.25s ease;
+        transition: background-color 0.2s ease, color 0.2s ease;
         overflow: hidden;
     }}
 
@@ -430,24 +414,24 @@ reader_html = f"""
         position: fixed;
         top: 0; left: 0; right: 0; bottom: 0;
         background: #000;
-        opacity: {(100 - default_bright) / 100.0};
+        opacity: 0.1;
         pointer-events: none;
         z-index: 900;
         transition: opacity 0.1s ease;
     }}
 
-    /* Top Floating Control Bar */
+    /* Top Floating Control Bar (padded left so sidebar toggle '>' never overlaps) */
     #top-bar {{
         position: fixed;
         top: 0; left: 0; right: 0;
         background: var(--bar-bg);
         backdrop-filter: blur(10px);
-        padding: 10px 18px;
+        padding: 10px 16px 10px 48px;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
+        gap: 8px;
         border-bottom: 1px solid rgba(128,128,128,0.2);
         z-index: 800;
         font-size: 13px;
@@ -456,7 +440,7 @@ reader_html = f"""
     .ctrl-group {{
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 7px;
     }}
 
     .btn {{
@@ -464,14 +448,15 @@ reader_html = f"""
         color: #fff;
         border: none;
         border-radius: 20px;
-        padding: 6px 14px;
+        padding: 6px 13px;
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: 4px;
         box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+        white-space: nowrap;
     }}
     .btn.secondary {{
         background: rgba(128,128,128,0.22);
@@ -483,14 +468,48 @@ reader_html = f"""
     }}
 
     input[type=range] {{
-        width: 85px;
+        width: 82px;
         accent-color: var(--accent-color);
         cursor: pointer;
     }}
 
+    /* Built-in Slide-Down Chapter Drawer (Works in Full-Screen!) */
+    #toc-drawer {{
+        position: fixed;
+        top: 52px;
+        right: 16px;
+        width: 340px;
+        max-width: 90vw;
+        max-height: 70vh;
+        background: var(--drawer-bg);
+        color: var(--text-color);
+        border: 1px solid rgba(128,128,128,0.3);
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+        overflow-y: auto;
+        z-index: 850;
+        display: none;
+        padding: 10px;
+    }}
+    .toc-item {{
+        padding: 9px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        border-bottom: 1px solid rgba(128,128,128,0.1);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }}
+    .toc-item:hover, .toc-item.active-chap {{
+        background: var(--highlight-bg);
+        color: var(--accent-color);
+        font-weight: 700;
+    }}
+
     /* Scrollable Reading Viewport */
     #reader-viewport {{
-        height: 88vh;
+        height: 92vh;
         overflow-y: auto;
         padding: 75px 12% 180px 12%;
         scroll-behavior: auto;
@@ -500,17 +519,23 @@ reader_html = f"""
 
     @media (max-width: 768px) {{
         #reader-viewport {{
-            padding: 85px 6% 180px 6%;
+            padding: 95px 6% 180px 6%;
         }}
     }}
 
-    #chapter-title {{
+    .chapter-block {{
+        margin-bottom: 50px;
+        padding-bottom: 20px;
+        border-bottom: 1px dashed rgba(128,128,128,0.25);
+    }}
+
+    .chapter-heading {{
         font-size: 1.45em;
         font-weight: 700;
-        margin-bottom: 1.2em;
+        margin: 0.8em 0 1.1em 0;
         color: var(--accent-color);
-        border-bottom: 1px solid rgba(128,128,128,0.2);
-        padding-bottom: 0.5em;
+        border-left: 4px solid var(--accent-color);
+        padding-left: 12px;
     }}
 
     p.novel-para {{
@@ -528,13 +553,13 @@ reader_html = f"""
         background-color: var(--highlight-bg);
     }}
 
-    /* Center Toast Indicator when Tapping Screen */
+    /* Center Toast Indicator */
     #tap-toast {{
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        background: rgba(0, 0, 0, 0.78);
+        background: rgba(0, 0, 0, 0.82);
         color: #fff;
         padding: 14px 26px;
         border-radius: 30px;
@@ -551,18 +576,18 @@ reader_html = f"""
         position: fixed;
         bottom: 0; left: 0; right: 0;
         background: var(--bar-bg);
-        padding: 6px 18px;
+        padding: 7px 18px;
         font-size: 12px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         border-top: 1px solid rgba(128,128,128,0.18);
         z-index: 800;
-        opacity: 0.9;
+        opacity: 0.94;
     }}
 </style>
 </head>
-<body class="theme-{initial_theme}">
+<body class="theme-dark">
 
 <div id="brightness-overlay"></div>
 <div id="tap-toast">⏸ 已暫停滾動</div>
@@ -573,72 +598,266 @@ reader_html = f"""
         <button id="scroll-toggle-btn" class="btn" onclick="toggleScroll(event)">▶️ 自動滾動</button>
         <span title="滾動速度">🚀</span>
         <input type="range" id="speed-slider" min="1" max="100" value="{default_speed}" oninput="updateSpeed(this.value)">
-        <span id="speed-val">{default_speed}</span>
+        <span id="speed-val" style="min-width:22px; font-weight:700;">{default_speed}</span>
     </div>
 
     <div class="ctrl-group">
         <span title="字體大小">🔠</span>
         <input type="range" id="font-slider" min="16" max="42" value="{default_font}" oninput="updateFont(this.value)">
+        <span id="font-val" style="min-width:28px;">{default_font}px</span>
         <span title="螢幕亮度">🔆</span>
         <input type="range" id="bright-slider" min="20" max="100" value="{default_bright}" oninput="updateBrightness(this.value)">
     </div>
 
     <div class="ctrl-group">
+        <button class="btn secondary" onclick="toggleTocDrawer(event)">📑 目錄</button>
         <button class="btn secondary" onclick="cycleTheme(event)">🎨 主題</button>
         <button id="tts-btn" class="btn secondary" onclick="toggleTTS(event)">🎧 朗讀</button>
     </div>
 </div>
 
+<!-- In-Reader Table of Contents Drawer -->
+<div id="toc-drawer"></div>
+
 <!-- Main Touch-to-Pause Reading Area -->
 <div id="reader-viewport">
-    <div id="chapter-title">{current_title}</div>
-    <div id="paragraphs-container"></div>
-    <div style="text-align:center; padding: 40px 0; opacity: 0.6; font-size: 14px;">
-        — 本章完結 (請從左側欄點擊「下一章 ➡️」) —
+    <div id="chapters-stream"></div>
+    <div id="end-banner" style="text-align:center; padding: 40px 0; opacity: 0.65; font-size: 15px; display:none;">
+        🎉 全書已閱讀完畢！
     </div>
 </div>
 
 <!-- Bottom Progress Ribbon -->
 <div id="bottom-ribbon">
-    <span>💡 輕觸螢幕任意位置或按 Space 鍵即可「暫停 / 繼續」滾動</span>
+    <span id="chap-status-label">載入中...</span>
     <span id="progress-indicator">進度: 0.0%</span>
 </div>
 
 <script>
-    const paragraphs = {paragraphs_json};
-    const bookKey = "hongguo_pos_" + {json.dumps(selected_book)} + "_ch_" + {st.session_state.chapter_idx};
-    const initialCloudPct = { float(st.session_state.scroll_pct) };
+    const allChapters = {chapters_json};
+    const bookName = {json.dumps(selected_book)};
+    const bookStateKey = "hongguo_v2_state_" + bookName;
+    const prefsKey = "hongguo_v2_prefs";
 
-    const container = document.getElementById("paragraphs-container");
+    const cloudInitChap = {int(st.session_state.chapter_idx)};
+    const cloudInitPct = {float(st.session_state.scroll_pct)};
+
+    const streamContainer = document.getElementById("chapters-stream");
     const viewport = document.getElementById("reader-viewport");
     const scrollBtn = document.getElementById("scroll-toggle-btn");
     const ttsBtn = document.getElementById("tts-btn");
     const toast = document.getElementById("tap-toast");
+    const chapLabel = document.getElementById("chap-status-label");
     const progLabel = document.getElementById("progress-indicator");
+    const tocDrawer = document.getElementById("toc-drawer");
+    const endBanner = document.getElementById("end-banner");
 
-    // Populate Paragraphs
-    paragraphs.forEach((txt, idx) => {{
-        const p = document.createElement("p");
-        p.className = "novel-para";
-        p.id = "para-" + idx;
-        p.textContent = txt;
-        container.appendChild(p);
-    }});
+    // --- 1. PERSISTENT USER PREFERENCES (NEVER RESET ON CHAPTER CHANGE) ---
+    const themes = ["theme-dark", "theme-day", "theme-green", "theme-sepia"];
+    let userPrefs = {{
+        speed: {default_speed},
+        fontSize: {default_font},
+        brightness: {default_bright},
+        themeIdx: 0,
+        ttsRate: {default_tts_rate}
+    }};
 
-    // Restore Scroll Position (LocalStorage or Cloud Synced Percentage)
-    window.addEventListener("load", () => {{
-        const savedLocal = localStorage.getItem(bookKey);
-        const maxScroll = viewport.scrollHeight - viewport.clientHeight;
-        if (initialCloudPct > 0 && maxScroll > 0) {{
-            viewport.scrollTop = (initialCloudPct / 100.0) * maxScroll;
-        }} else if (savedLocal !== null && maxScroll > 0) {{
-            viewport.scrollTop = (parseFloat(savedLocal) / 100.0) * maxScroll;
+    try {{
+        const savedPrefs = localStorage.getItem(prefsKey);
+        if (savedPrefs) {{
+            userPrefs = Object.assign(userPrefs, JSON.parse(savedPrefs));
         }}
+    }} catch (e) {{}}
+
+    function savePrefs() {{
+        try {{
+            localStorage.setItem(prefsKey, JSON.stringify(userPrefs));
+        }} catch (e) {{}}
+    }}
+
+    function applyPrefsToUI() {{
+        document.getElementById("speed-slider").value = userPrefs.speed;
+        document.getElementById("speed-val").textContent = userPrefs.speed;
+        document.getElementById("font-slider").value = userPrefs.fontSize;
+        document.getElementById("font-val").textContent = userPrefs.fontSize + "px";
+        document.getElementById("bright-slider").value = userPrefs.brightness;
+        document.getElementById("brightness-overlay").style.opacity = ((100 - userPrefs.brightness) / 100.0).toFixed(2);
+
+        themes.forEach(t => document.body.classList.remove(t));
+        const activeTheme = themes[userPrefs.themeIdx % themes.length] || "theme-dark";
+        document.body.classList.add(activeTheme);
+
+        document.querySelectorAll("p.novel-para").forEach(p => {{
+            p.style.fontSize = userPrefs.fontSize + "px";
+        }});
+    }}
+
+    // --- 2. CONTINUOUS INFINITE CHAPTER STREAM ENGINE ---
+    let minLoadedChap = 0;
+    let maxLoadedChap = -1;
+    let activeChapIdx = 0;
+    let isAppending = false;
+
+    function createChapterElement(chapIdx) {{
+        const ch = allChapters[chapIdx];
+        const block = document.createElement("div");
+        block.className = "chapter-block";
+        block.id = "chap-block-" + chapIdx;
+        block.dataset.chapIdx = chapIdx;
+
+        const h = document.createElement("div");
+        h.className = "chapter-heading";
+        h.textContent = ch.title;
+        block.appendChild(h);
+
+        ch.paras.forEach((txt, pIdx) => {{
+            const p = document.createElement("p");
+            p.className = "novel-para";
+            p.id = `para-${{chapIdx}}-${{pIdx}}`;
+            p.dataset.chapIdx = chapIdx;
+            p.dataset.paraIdx = pIdx;
+            p.style.fontSize = userPrefs.fontSize + "px";
+            p.textContent = txt;
+            block.appendChild(p);
+        }});
+        return block;
+    }}
+
+    function appendNextChapterIfNeeded() {{
+        if (isAppending) return;
+        if (maxLoadedChap >= allChapters.length - 1) {{
+            endBanner.style.display = "block";
+            return;
+        }}
+        const distToBottom = viewport.scrollHeight - (viewport.scrollTop + viewport.clientHeight);
+        if (distToBottom < 1400) {{
+            isAppending = true;
+            maxLoadedChap += 1;
+            const nextBlock = createChapterElement(maxLoadedChap);
+            streamContainer.appendChild(nextBlock);
+            isAppending = false;
+            // If the newly added chapter is very short, check one more time
+            if (viewport.scrollHeight - (viewport.scrollTop + viewport.clientHeight) < 900 && maxLoadedChap < allChapters.length - 1) {{
+                appendNextChapterIfNeeded();
+            }}
+        }}
+    }}
+
+    function loadStartingFromChapter(startChapIdx, initialPct = 0.0) {{
+        streamContainer.innerHTML = "";
+        endBanner.style.display = "none";
+        minLoadedChap = startChapIdx;
+        maxLoadedChap = startChapIdx - 1;
+        activeChapIdx = startChapIdx;
+
+        // Render starting chapter + next chapter immediately so there is always buffer to scroll
+        const countToRender = Math.min(2, allChapters.length - startChapIdx);
+        for (let i = 0; i < countToRender; i++) {{
+            maxLoadedChap += 1;
+            streamContainer.appendChild(createChapterElement(maxLoadedChap));
+        }}
+        if (maxLoadedChap >= allChapters.length - 1) {{
+            endBanner.style.display = "block";
+        }}
+
+        setTimeout(() => {{
+            const firstBlock = document.getElementById("chap-block-" + startChapIdx);
+            if (firstBlock && initialPct > 0) {{
+                viewport.scrollTop = firstBlock.offsetTop + (firstBlock.offsetHeight * (initialPct / 100.0));
+            }} else {{
+                viewport.scrollTop = 0;
+            }}
+            updateReadingProgress();
+        }}, 50);
+    }}
+
+    // Build TOC Drawer Items
+    function buildTocDrawer() {{
+        tocDrawer.innerHTML = "";
+        allChapters.forEach((ch, idx) => {{
+            const item = document.createElement("div");
+            item.className = "toc-item" + (idx === activeChapIdx ? " active-chap" : "");
+            item.id = "toc-item-" + idx;
+            item.textContent = `${{idx + 1}}. ${{ch.title}}`;
+            item.onclick = (e) => {{
+                e.stopPropagation();
+                tocDrawer.style.display = "none";
+                loadStartingFromChapter(idx, 0.0);
+                showToast(`📑 已跳轉至：${{ch.title}}`);
+            }};
+            tocDrawer.appendChild(item);
+        }});
+    }}
+
+    function toggleTocDrawer(e) {{
+        if (e) e.stopPropagation();
+        if (tocDrawer.style.display === "block") {{
+            tocDrawer.style.display = "none";
+        }} else {{
+            document.querySelectorAll(".toc-item").forEach(el => el.classList.remove("active-chap"));
+            const activeItem = document.getElementById("toc-item-" + activeChapIdx);
+            if (activeItem) activeItem.classList.add("active-chap");
+            tocDrawer.style.display = "block";
+            if (activeItem) activeItem.scrollIntoView({{ block: "center" }});
+        }}
+    }}
+
+    // Track current visible chapter & percentage inside that chapter
+    function updateReadingProgress() {{
+        const blocks = document.querySelectorAll(".chapter-block");
+        const probeY = viewport.scrollTop + 140;
+        let currentBlock = blocks[0];
+
+        for (let i = 0; i < blocks.length; i++) {{
+            if (blocks[i].offsetTop <= probeY) {{
+                currentBlock = blocks[i];
+            }} else {{
+                break;
+            }}
+        }}
+
+        if (currentBlock) {{
+            activeChapIdx = parseInt(currentBlock.dataset.chapIdx, 10);
+            const chapTitle = allChapters[activeChapIdx]?.title || "";
+            const blockScroll = Math.max(0, probeY - currentBlock.offsetTop);
+            const chapPct = Math.min(100, Math.max(0, (blockScroll / Math.max(1, currentBlock.offsetHeight)) * 100)).toFixed(1);
+
+            chapLabel.textContent = `📖 (${{activeChapIdx + 1}}/${{allChapters.length}}) ${{chapTitle}}`;
+            progLabel.textContent = `本章進度: ${{chapPct}}%`;
+
+            try {{
+                localStorage.setItem(bookStateKey, JSON.stringify({{
+                    chapIdx: activeChapIdx,
+                    pct: parseFloat(chapPct)
+                }}));
+            }} catch (e) {{}}
+        }}
+    }}
+
+    // --- 3. INITIALIZE BOOK POSITION ---
+    window.addEventListener("load", () => {{
+        applyPrefsToUI();
+        buildTocDrawer();
+
+        let startChap = cloudInitChap;
+        let startPct = cloudInitPct;
+
+        try {{
+            const savedBookState = localStorage.getItem(bookStateKey);
+            if (savedBookState) {{
+                const parsed = JSON.parse(savedBookState);
+                if (typeof parsed.chapIdx === "number" && parsed.chapIdx >= 0 && parsed.chapIdx < allChapters.length) {{
+                    startChap = parsed.chapIdx;
+                    startPct = parsed.pct || 0.0;
+                }}
+            }}
+        }} catch (e) {{}}
+
+        loadStartingFromChapter(startChap, startPct);
     }});
 
-    // Autoscroll Engine using requestAnimationFrame with Sub-Pixel Accumulator
+    // --- 4. SUB-PIXEL SMOOTH AUTOSCROLL ENGINE ---
     let isScrolling = false;
-    let scrollSpeed = {default_speed};
     let pixelAccumulator = 0;
     let lastFrameTime = null;
 
@@ -648,19 +867,18 @@ reader_html = f"""
         const deltaMs = timestamp - lastFrameTime;
         lastFrameTime = timestamp;
 
-        // Map slider 1..100 to smooth pixels per second (8 px/sec to 220 px/sec)
-        const pxPerSec = 6 + Math.pow(scrollSpeed, 1.35) * 0.42;
+        const pxPerSec = 6 + Math.pow(userPrefs.speed, 1.35) * 0.42;
         pixelAccumulator += (pxPerSec * deltaMs) / 1000.0;
 
         if (pixelAccumulator >= 1.0) {{
             const step = Math.floor(pixelAccumulator);
             viewport.scrollTop += step;
             pixelAccumulator -= step;
+            appendNextChapterIfNeeded();
         }}
 
-        // Auto-stop at bottom of chapter
-        if (viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 2) {{
-            setScrollingState(false, "🎉 已到達本章底部");
+        if (maxLoadedChap >= allChapters.length - 1 && (viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 3)) {{
+            setScrollingState(false, "🎉 已到達全書結尾");
             return;
         }}
         requestAnimationFrame(autoScrollStep);
@@ -680,7 +898,7 @@ reader_html = f"""
         if (isScrolling) {{
             lastFrameTime = null;
             scrollBtn.innerHTML = "⏸ 暫停滾動";
-            showToast(customMsg || "▶️ 開始自動滾動");
+            showToast(customMsg || "▶️ 開始無縫滾動");
             requestAnimationFrame(autoScrollStep);
         }} else {{
             scrollBtn.innerHTML = "▶️ 自動滾動";
@@ -709,7 +927,6 @@ reader_html = f"""
         const dx = Math.abs(e.touches[0].clientX - touchStartX);
         if (dy > 10 || dx > 10) {{
             isDraggingTouch = true;
-            // If user manually flicks the screen while autoscrolling, pause gently
             if (isScrolling) {{
                 setScrollingState(false, "⏸ 手動滑動已暫停自動滾動");
             }}
@@ -717,12 +934,14 @@ reader_html = f"""
     }}, {{passive: true}});
 
     viewport.addEventListener("click", (e) => {{
-        // Ignore if user was selecting text or dragging
+        if (tocDrawer.style.display === "block") {{
+            tocDrawer.style.display = "none";
+            return;
+        }}
         if (isDraggingTouch) return;
         setScrollingState(!isScrolling);
     }});
 
-    // Spacebar Support for Desktop
     window.addEventListener("keydown", (e) => {{
         if (e.code === "Space") {{
             e.preventDefault();
@@ -730,80 +949,84 @@ reader_html = f"""
         }}
     }});
 
-    // Track Scroll Percentage & Save to LocalStorage
     viewport.addEventListener("scroll", () => {{
-        const maxScroll = viewport.scrollHeight - viewport.clientHeight;
-        if (maxScroll > 0) {{
-            const pct = Math.min(100, Math.max(0, (viewport.scrollTop / maxScroll) * 100)).toFixed(1);
-            progLabel.textContent = "本章進度: " + pct + "%";
-            localStorage.setItem(bookKey, pct);
-        }}
+        appendNextChapterIfNeeded();
+        updateReadingProgress();
     }});
 
-    // UI Sliders
+    // --- 5. LIVE UI CONTROLS WITH INSTANT MEMORY ---
     function updateSpeed(val) {{
-        scrollSpeed = parseInt(val, 10);
+        userPrefs.speed = parseInt(val, 10);
         document.getElementById("speed-val").textContent = val;
+        savePrefs();
     }}
 
     function updateFont(val) {{
+        userPrefs.fontSize = parseInt(val, 10);
+        document.getElementById("font-val").textContent = val + "px";
         document.querySelectorAll("p.novel-para").forEach(p => {{
             p.style.fontSize = val + "px";
         }});
+        savePrefs();
     }}
 
     function updateBrightness(val) {{
+        userPrefs.brightness = parseInt(val, 10);
         const overlay = document.getElementById("brightness-overlay");
-        overlay.style.opacity = ((100 - parseInt(val, 10)) / 100.0).toFixed(2);
+        overlay.style.opacity = ((100 - userPrefs.brightness) / 100.0).toFixed(2);
+        savePrefs();
     }}
 
-    const themes = ["theme-dark", "theme-day", "theme-green", "theme-sepia"];
-    let currentThemeIdx = themes.indexOf("theme-{initial_theme}");
     function cycleTheme(e) {{
         if (e) e.stopPropagation();
-        document.body.classList.remove(themes[currentThemeIdx]);
-        currentThemeIdx = (currentThemeIdx + 1) % themes.length;
-        document.body.classList.add(themes[currentThemeIdx]);
+        document.body.classList.remove(themes[userPrefs.themeIdx % themes.length]);
+        userPrefs.themeIdx = (userPrefs.themeIdx + 1) % themes.length;
+        document.body.classList.add(themes[userPrefs.themeIdx]);
+        savePrefs();
     }}
 
-    // --- READ ALOUD (WEB SPEECH API TTS) ---
+    // --- 6. CONTINUOUS CROSS-CHAPTER READ ALOUD (TTS) ---
     let isSpeaking = false;
-    let currentParaIdx = 0;
     const synth = window.speechSynthesis;
 
-    function findFirstVisibleParagraph() {{
-        const viewTop = viewport.scrollTop + 80;
-        for (let i = 0; i < paragraphs.length; i++) {{
-            const el = document.getElementById("para-" + i);
-            if (el && (el.offsetTop + el.offsetHeight) > viewTop) {{
+    function getAllRenderedParagraphs() {{
+        return Array.from(document.querySelectorAll("p.novel-para"));
+    }}
+
+    function findFirstVisibleParagraphElement() {{
+        const viewTop = viewport.scrollTop + 90;
+        const allParas = getAllRenderedParagraphs();
+        for (let i = 0; i < allParas.length; i++) {{
+            const el = allParas[i];
+            if ((el.offsetTop + el.offsetHeight) > viewTop) {{
                 return i;
             }}
         }}
         return 0;
     }}
 
-    function speakParagraph(index) {{
-        if (!isSpeaking || index >= paragraphs.length) {{
+    function speakRenderedParagraphAt(idx) {{
+        if (!isSpeaking) return;
+        appendNextChapterIfNeeded();
+        const allParas = getAllRenderedParagraphs();
+        if (idx >= allParas.length) {{
             stopTTS();
             return;
         }}
-        currentParaIdx = index;
-        document.querySelectorAll("p.novel-para").forEach(p => p.classList.remove("speaking-active"));
-        const activeEl = document.getElementById("para-" + index);
-        if (activeEl) {{
-            activeEl.classList.add("speaking-active");
-            activeEl.scrollIntoView({{ behavior: "smooth", block: "center" }});
-        }}
+        allParas.forEach(p => p.classList.remove("speaking-active"));
+        const activeEl = allParas[idx];
+        activeEl.classList.add("speaking-active");
+        activeEl.scrollIntoView({{ behavior: "smooth", block: "center" }});
 
-        const utter = new SpeechSynthesisUtterance(paragraphs[index]);
-        // Automatically select Chinese or English voice based on paragraph characters
-        const hasChinese = /[\u4e00-\u9fa5]/.test(paragraphs[index]);
+        const text = activeEl.textContent;
+        const utter = new SpeechSynthesisUtterance(text);
+        const hasChinese = /[\\u4e00-\\u9fa5]/.test(text);
         utter.lang = hasChinese ? "zh-HK" : "en-US";
-        utter.rate = {default_tts_rate};
+        utter.rate = userPrefs.ttsRate || 1.1;
 
         utter.onend = () => {{
             if (isSpeaking) {{
-                speakParagraph(index + 1);
+                speakRenderedParagraphAt(idx + 1);
             }}
         }};
         utter.onerror = () => {{
@@ -832,10 +1055,10 @@ reader_html = f"""
             if (isScrolling) setScrollingState(false);
             isSpeaking = true;
             ttsBtn.innerHTML = "⏹ 停止朗讀";
-            const startIdx = findFirstVisibleParagraph();
-            showToast("🎧 開始語音朗讀");
+            const startIdx = findFirstVisibleParagraphElement();
+            showToast("🎧 開始跨章連續語音朗讀");
             synth.cancel();
-            speakParagraph(startIdx);
+            speakRenderedParagraphAt(startIdx);
         }}
     }}
 </script>
@@ -843,4 +1066,4 @@ reader_html = f"""
 </html>
 """
 
-components.html(reader_html, height=820, scrolling=False)
+components.html(reader_html, height=860, scrolling=False)
