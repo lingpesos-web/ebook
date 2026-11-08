@@ -1058,4 +1058,99 @@ reader_html = f"""
     brightSlider.addEventListener("input", (e) => {{
         userPrefs.brightness = parseInt(e.target.value, 10);
         const overlay = document.getElementById("brightness-overlay");
-        overlay.style.opacity = ((100 - us
+        overlay.style.opacity = ((100 - userPrefs.brightness) / 100.0).toFixed(2);
+        savePrefs();
+    }});
+
+    themeBtn.addEventListener("click", (e) => {{
+        e.stopPropagation();
+        document.body.classList.remove(themes[userPrefs.themeIdx % themes.length]);
+        userPrefs.themeIdx = (userPrefs.themeIdx + 1) % themes.length;
+        document.body.classList.add(themes[userPrefs.themeIdx]);
+        savePrefs();
+    }});
+
+    // --- 6. CONTINUOUS CROSS-CHAPTER READ ALOUD (TTS) ---
+    let isSpeaking = false;
+    const synth = window.speechSynthesis;
+
+    function getAllRenderedParagraphs() {{
+        return Array.from(document.querySelectorAll("p.novel-para"));
+    }}
+
+    function findFirstVisibleParagraphElement() {{
+        const viewTop = viewport.scrollTop + 40;
+        const allParas = getAllRenderedParagraphs();
+        for (let i = 0; i < allParas.length; i++) {{
+            const el = allParas[i];
+            if ((el.offsetTop + el.offsetHeight) > viewTop) {{
+                return i;
+            }}
+        }}
+        return 0;
+    }}
+
+    function speakRenderedParagraphAt(idx) {{
+        if (!isSpeaking) return;
+        appendNextChapterIfNeeded();
+        const allParas = getAllRenderedParagraphs();
+        if (idx >= allParas.length) {{
+            stopTTS();
+            return;
+        }}
+        allParas.forEach(p => p.classList.remove("speaking-active"));
+        const activeEl = allParas[idx];
+        activeEl.classList.add("speaking-active");
+        activeEl.scrollIntoView({{ behavior: "smooth", block: "center" }});
+
+        const text = activeEl.textContent;
+        const utter = new SpeechSynthesisUtterance(text);
+        const hasChinese = /[\\u4e00-\\u9fa5]/.test(text);
+        utter.lang = hasChinese ? "zh-HK" : "en-US";
+        utter.rate = userPrefs.ttsRate || 1.1;
+
+        utter.onend = () => {{
+            if (isSpeaking) {{
+                speakRenderedParagraphAt(idx + 1);
+            }}
+        }};
+        utter.onerror = () => {{
+            stopTTS();
+        }};
+        synth.speak(utter);
+    }}
+
+    function stopTTS() {{
+        isSpeaking = false;
+        if (synth) synth.cancel();
+        ttsBtn.innerHTML = "🎧 朗讀";
+        document.querySelectorAll("p.novel-para").forEach(p => p.classList.remove("speaking-active"));
+    }}
+
+    ttsBtn.addEventListener("click", (e) => {{
+        e.stopPropagation();
+        if (!("speechSynthesis" in window)) {{
+            alert("您的瀏覽器不支援內建語音朗讀功能");
+            return;
+        }}
+        if (isSpeaking) {{
+            stopTTS();
+            showToast("🔇 已停止語音朗讀");
+        }} else {{
+            if (isScrolling) setScrollingState(false);
+            isSpeaking = true;
+            ttsBtn.innerHTML = "⏹ 停止朗讀";
+            const startIdx = findFirstVisibleParagraphElement();
+            showToast("🎧 開始跨章連續語音朗讀");
+            synth.cancel();
+            speakRenderedParagraphAt(startIdx);
+        }}
+    }});
+
+    initReader();
+</script>
+</body>
+</html>
+"""
+
+components.html(reader_html, height=820, scrolling=False)
