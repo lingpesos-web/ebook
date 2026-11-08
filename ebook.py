@@ -10,7 +10,7 @@ from opencc import OpenCC
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="My Books",
+    page_title="My Books | 紅果私人書屋",
     page_icon="📖",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -201,23 +201,22 @@ prefs = progress_db.get("_preferences", {})
 sample_path = os.path.join(BOOKS_DIR, "00_Welcome_Guide.txt")
 if not os.path.exists(sample_path):
     sample_lines = [
-        "第1章 歡迎使用紅果私人書屋 v2.0 (無縫跨章滾動版)",
+        "第1章 歡迎使用紅果私人書屋 v3.0 (全觸控無縫滾動版)",
         "歡迎來到您的專屬雲端電子書閱讀器！",
-        "【v2.0 全新升級亮點】",
-        "1. 無縫跨章自動滾動：現在當您開啟「▶️ 自動滾動」後，系統會在接近章節底部時，自動無縫接續載入下一章（第1章 → 第2章 → 第3章……），永遠不會中途停頓，直到您輕觸螢幕暫停為止！",
-        "2. 速度與背景永久記憶：您在上方控制列調整的「滾動速度、字體大小、亮度、背景主題」，會即時自動鎖定保存在瀏覽器內，換章節或重開網頁都不會跳回預設值。",
-        "3. 全螢幕隨時召喚側邊欄：左上角常駐「展開/收起側邊欄」按鈕，收起側邊欄全螢幕閱讀時，隨時點一下左上角即可叫回書庫選單。上方控制列亦內建「📑 目錄」按鈕，免開側邊欄也能秒速跳章！",
+        "【v3.0 核心功能指南】",
+        "1. 頂部懸浮控制列：現在頂部控制列完全獨立懸浮在閱讀區上方，您可以直接拖曳滑桿調整「滾動速度、字體大小、亮度」，或點擊「📑 目錄」、「🎨 主題」、「🎧 朗讀」。",
+        "2. 無縫跨章自動滾動：開啟「▶️ 自動滾動」後，系統會在接近章節底部時自動把下一章接在下方（第1章 → 第2章 → 第3章……），永遠不會中途停頓，直到您輕觸螢幕暫停為止！",
+        "3. 速度與背景永久記憶：您調整的滾動速度、字體大小、亮度與背景主題，會即時儲存在瀏覽器中，換章節或重開網頁都不會跳回預設值。",
         "第2章 跨章無縫接續測試段落",
-        "您現在看到的是第2章的內容！當剛剛從第1章往下滾動時，系統已經自動把第2章接在下方，您的滾動速度、背景顏色與字體大小完全保持不變。",
-        "無論在 iPad、睡房觸控電腦或書房電腦上，只要用手指輕觸文字區域任意位置（或按鍵盤 Space 鍵），即可隨時暫停或繼續滾動。",
-        "祝您享受最流暢的沉浸式閱讀體驗！"
+        "您現在看到的是第2章的內容！當從第1章往下滾動時，系統已經自動把第2章接在下方，滾動速度、背景顏色與字體大小完全保持不變。",
+        "無論在 iPad、睡房觸控電腦或書房電腦上，只要用手指輕觸文字區域任意位置（或按鍵盤 Space 鍵），即可隨時暫停或繼續滾動。"
     ]
     with open(sample_path, "w", encoding="utf-8") as f:
         f.write("\n\n".join(sample_lines))
 
 # --- SIDEBAR CONTROLS ---
 with st.sidebar:
-    st.markdown("### 📖 紅果私人書屋 v2")
+    st.markdown("### 📖 My Books | 私人書屋")
     
     if get_github_config():
         st.caption("🟢 GitHub 雲端同步已啟用")
@@ -295,57 +294,76 @@ with st.sidebar:
         st.toast(f"✅ 已同步至 GitHub 雲端！({msg})")
         st.rerun()
 
-# --- KEEP SIDEBAR EXPAND/COLLAPSE BUTTON ALWAYS VISIBLE ON TOUCHSCREENS ---
+# --- CRITICAL CSS FIX: PREVENT STREAMLIT HEADER FROM BLOCKING TOP BAR CLICKS ---
 st.markdown("""
 <style>
+    /* Place the reader container just below the top-left sidebar toggle button & lock outer scroll */
     .block-container {
-        padding-top: 0.4rem !important;
+        padding-top: 2.6rem !important;
         padding-bottom: 0rem !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
+        padding-left: 0.4rem !important;
+        padding-right: 0.4rem !important;
         max-width: 100% !important;
     }
-    /* Keep header transparent so the sidebar toggle button is ALWAYS touchable */
+    /* Restrict Streamlit's header to ONLY the top-left 60px corner so it NEVER covers the reader's top bar */
     header[data-testid="stHeader"] {
         background: transparent !important;
+        width: 60px !important;
+        max-width: 60px !important;
+        right: auto !important;
         height: 2.5rem !important;
-        pointer-events: none;
+        pointer-events: none !important;
     }
-    header[data-testid="stHeader"] * {
-        pointer-events: auto;
+    .stAppToolbar, [data-testid="stToolbar"] {
+        width: 60px !important;
+        max-width: 60px !important;
+        right: auto !important;
+        background: transparent !important;
+        pointer-events: none !important;
     }
-    /* Hide the right-side deploy/menu buttons, keep only the left sidebar toggle */
-    .stAppDeployButton, [data-testid="stToolbarActions"], [data-testid="stStatusWidget"] {
+    /* Hide right-side Streamlit toolbar clutter */
+    .stAppDeployButton, [data-testid="stToolbarActions"], [data-testid="stStatusWidget"], [data-testid="stDecoration"] {
         display: none !important;
     }
-    /* Style the collapsed sidebar '>' button so it is large & easy to tap on iPad/PC */
-    [data-testid="collapsedControl"], [data-testid="stSidebarCollapsedControl"] {
-        background-color: rgba(255, 94, 58, 0.92) !important;
+    /* Make ONLY the sidebar expand/collapse button clickable and clearly visible */
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"],
+    header[data-testid="stHeader"] button {
+        pointer-events: auto !important;
+        background-color: #ff6b4a !important;
         color: #ffffff !important;
-        border-radius: 0 22px 22px 0 !important;
-        padding: 6px 12px !important;
-        top: 8px !important;
+        border-radius: 0 20px 20px 0 !important;
+        padding: 4px 10px !important;
+        top: 4px !important;
         left: 0px !important;
         z-index: 999999 !important;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.35) !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
     }
-    [data-testid="collapsedControl"] svg, [data-testid="stSidebarCollapsedControl"] svg {
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg,
+    header[data-testid="stHeader"] button svg {
         fill: #ffffff !important;
         stroke: #ffffff !important;
-        width: 22px !important;
-        height: 22px !important;
+    }
+    /* Size the reader iframe dynamically to fit any iPad or PC screen without outer page scrolling */
+    iframe {
+        height: calc(100dvh - 2.9rem) !important;
+        min-height: 480px !important;
+        border: none !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Serialize all chapters for seamless client-side continuous scrolling
-chapters_json = json.dumps(chapters, ensure_ascii=False)
+# Base64-encode chapters JSON so special characters/quotes in any TXT file can never break JS
+chapters_b64 = base64.b64encode(json.dumps(chapters, ensure_ascii=False).encode("utf-8")).decode("ascii")
+book_name_b64 = base64.b64encode(selected_book.encode("utf-8")).decode("ascii")
+
 default_speed = int(prefs.get("speed", 28))
 default_font = int(prefs.get("font_size", 24))
 default_bright = int(prefs.get("brightness", 90))
 default_tts_rate = float(prefs.get("tts_rate", 1.1))
 
-# --- INTERACTIVE HONGGUO READER CANVAS (SEAMLESS INFINITE CHAPTER SCROLL) ---
+# --- INTERACTIVE HONGGUO READER CANVAS ---
 reader_html = f"""
 <!DOCTYPE html>
 <html>
@@ -357,7 +375,7 @@ reader_html = f"""
         --bg-color: #121212;
         --text-color: #cfcfcf;
         --accent-color: #ff6b4a;
-        --bar-bg: rgba(26, 26, 28, 0.96);
+        --bar-bg: rgba(26, 26, 28, 0.98);
         --highlight-bg: rgba(255, 107, 74, 0.25);
         --drawer-bg: #1e1e20;
     }}
@@ -365,7 +383,7 @@ reader_html = f"""
         --bg-color: #f8f9fa;
         --text-color: #212529;
         --accent-color: #d9480f;
-        --bar-bg: rgba(255, 255, 255, 0.96);
+        --bar-bg: rgba(255, 255, 255, 0.98);
         --highlight-bg: rgba(255, 193, 7, 0.35);
         --drawer-bg: #ffffff;
     }}
@@ -373,7 +391,7 @@ reader_html = f"""
         --bg-color: #cce8cf;
         --text-color: #1b3320;
         --accent-color: #2b8a3e;
-        --bar-bg: rgba(220, 242, 222, 0.96);
+        --bar-bg: rgba(220, 242, 222, 0.98);
         --highlight-bg: rgba(43, 138, 62, 0.22);
         --drawer-bg: #daf0dc;
     }}
@@ -381,7 +399,7 @@ reader_html = f"""
         --bg-color: #f4ecd8;
         --text-color: #3c2f2f;
         --accent-color: #b05b3b;
-        --bar-bg: rgba(248, 241, 224, 0.96);
+        --bar-bg: rgba(248, 241, 224, 0.98);
         --highlight-bg: rgba(176, 91, 59, 0.22);
         --drawer-bg: #efe4c8;
     }}
@@ -389,7 +407,7 @@ reader_html = f"""
         --bg-color: #121212;
         --text-color: #cfcfcf;
         --accent-color: #ff6b4a;
-        --bar-bg: rgba(26, 26, 28, 0.96);
+        --bar-bg: rgba(26, 26, 28, 0.98);
         --highlight-bg: rgba(255, 107, 74, 0.25);
         --drawer-bg: #1e1e20;
     }}
@@ -399,7 +417,9 @@ reader_html = f"""
         -webkit-tap-highlight-color: transparent;
     }}
 
-    body {{
+    html, body {{
+        height: 100%;
+        width: 100%;
         margin: 0;
         padding: 0;
         background-color: var(--bg-color);
@@ -407,6 +427,7 @@ reader_html = f"""
         font-family: -apple-system, BlinkMacSystemFont, "PingFang HK", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
         transition: background-color 0.2s ease, color 0.2s ease;
         overflow: hidden;
+        position: relative;
     }}
 
     /* Brightness Dimmer Overlay */
@@ -420,27 +441,28 @@ reader_html = f"""
         transition: opacity 0.1s ease;
     }}
 
-    /* Top Floating Control Bar (padded left so sidebar toggle '>' never overlaps) */
+    /* Pinned Floating Top Control Bar */
     #top-bar {{
         position: fixed;
         top: 0; left: 0; right: 0;
+        min-height: 54px;
         background: var(--bar-bg);
-        backdrop-filter: blur(10px);
-        padding: 10px 16px 10px 48px;
+        padding: 8px 16px;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
-        border-bottom: 1px solid rgba(128,128,128,0.2);
-        z-index: 800;
+        gap: 10px;
+        border-bottom: 1px solid rgba(128,128,128,0.25);
+        z-index: 1000;
         font-size: 13px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
     }}
 
     .ctrl-group {{
         display: flex;
         align-items: center;
-        gap: 7px;
+        gap: 8px;
     }}
 
     .btn {{
@@ -448,51 +470,65 @@ reader_html = f"""
         color: #fff;
         border: none;
         border-radius: 20px;
-        padding: 6px 13px;
+        padding: 7px 14px;
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
-        gap: 4px;
+        gap: 5px;
         box-shadow: 0 2px 6px rgba(0,0,0,0.18);
         white-space: nowrap;
+        touch-action: manipulation;
     }}
     .btn.secondary {{
-        background: rgba(128,128,128,0.22);
+        background: rgba(128,128,128,0.24);
         color: var(--text-color);
         box-shadow: none;
     }}
     .btn:active {{
-        transform: scale(0.96);
+        transform: scale(0.95);
     }}
 
     input[type=range] {{
-        width: 82px;
+        width: 90px;
+        height: 24px;
         accent-color: var(--accent-color);
         cursor: pointer;
+        touch-action: pan-y;
     }}
 
-    /* Built-in Slide-Down Chapter Drawer (Works in Full-Screen!) */
+    /* Built-in Floating Chapter Drawer (目錄) */
     #toc-drawer {{
         position: fixed;
-        top: 52px;
+        top: 58px;
         right: 16px;
         width: 340px;
-        max-width: 90vw;
-        max-height: 70vh;
+        max-width: 92vw;
+        max-height: 72vh;
         background: var(--drawer-bg);
         color: var(--text-color);
-        border: 1px solid rgba(128,128,128,0.3);
+        border: 1px solid rgba(128,128,128,0.35);
         border-radius: 12px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.5);
         overflow-y: auto;
-        z-index: 850;
+        -webkit-overflow-scrolling: touch;
+        z-index: 1100;
         display: none;
         padding: 10px;
     }}
+    .toc-header {{
+        font-weight: 700;
+        font-size: 14px;
+        padding: 6px 10px 10px 10px;
+        border-bottom: 1px solid rgba(128,128,128,0.2);
+        margin-bottom: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }}
     .toc-item {{
-        padding: 9px 12px;
+        padding: 10px 12px;
         border-radius: 8px;
         cursor: pointer;
         font-size: 14px;
@@ -507,19 +543,32 @@ reader_html = f"""
         font-weight: 700;
     }}
 
-    /* Scrollable Reading Viewport */
+    /* Scrollable Reading Viewport Anchored Between Top Bar and Bottom Ribbon */
     #reader-viewport {{
-        height: 92vh;
+        position: absolute;
+        top: 54px;
+        bottom: 32px;
+        left: 0;
+        right: 0;
         overflow-y: auto;
-        padding: 75px 12% 180px 12%;
+        -webkit-overflow-scrolling: touch;
+        padding: 28px 12% 160px 12%;
         scroll-behavior: auto;
         cursor: pointer;
         user-select: none;
     }}
 
     @media (max-width: 768px) {{
+        #top-bar {{
+            padding: 6px 10px;
+            min-height: 82px;
+        }}
         #reader-viewport {{
-            padding: 95px 6% 180px 6%;
+            top: 82px;
+            padding: 20px 6% 160px 6%;
+        }}
+        #toc-drawer {{
+            top: 86px;
         }}
     }}
 
@@ -532,7 +581,7 @@ reader_html = f"""
     .chapter-heading {{
         font-size: 1.45em;
         font-weight: 700;
-        margin: 0.8em 0 1.1em 0;
+        margin: 0.6em 0 1.1em 0;
         color: var(--accent-color);
         border-left: 4px solid var(--accent-color);
         padding-left: 12px;
@@ -568,22 +617,22 @@ reader_html = f"""
         pointer-events: none;
         opacity: 0;
         transition: opacity 0.25s ease;
-        z-index: 950;
+        z-index: 1200;
     }}
 
-    /* Bottom Status Ribbon */
+    /* Pinned Bottom Status Ribbon */
     #bottom-ribbon {{
         position: fixed;
         bottom: 0; left: 0; right: 0;
+        height: 32px;
         background: var(--bar-bg);
-        padding: 7px 18px;
+        padding: 0 18px;
         font-size: 12px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-top: 1px solid rgba(128,128,128,0.18);
-        z-index: 800;
-        opacity: 0.94;
+        border-top: 1px solid rgba(128,128,128,0.2);
+        z-index: 1000;
     }}
 </style>
 </head>
@@ -595,29 +644,35 @@ reader_html = f"""
 <!-- Top Floating Hongguo Toolbar -->
 <div id="top-bar">
     <div class="ctrl-group">
-        <button id="scroll-toggle-btn" class="btn" onclick="toggleScroll(event)">▶️ 自動滾動</button>
+        <button id="scroll-toggle-btn" type="button" class="btn">▶️ 自動滾動</button>
         <span title="滾動速度">🚀</span>
-        <input type="range" id="speed-slider" min="1" max="100" value="{default_speed}" oninput="updateSpeed(this.value)">
-        <span id="speed-val" style="min-width:22px; font-weight:700;">{default_speed}</span>
+        <input type="range" id="speed-slider" min="1" max="100" value="{default_speed}">
+        <span id="speed-val" style="min-width:24px; font-weight:700;">{default_speed}</span>
     </div>
 
     <div class="ctrl-group">
         <span title="字體大小">🔠</span>
-        <input type="range" id="font-slider" min="16" max="42" value="{default_font}" oninput="updateFont(this.value)">
-        <span id="font-val" style="min-width:28px;">{default_font}px</span>
+        <input type="range" id="font-slider" min="16" max="42" value="{default_font}">
+        <span id="font-val" style="min-width:32px;">{default_font}px</span>
         <span title="螢幕亮度">🔆</span>
-        <input type="range" id="bright-slider" min="20" max="100" value="{default_bright}" oninput="updateBrightness(this.value)">
+        <input type="range" id="bright-slider" min="20" max="100" value="{default_bright}">
     </div>
 
     <div class="ctrl-group">
-        <button class="btn secondary" onclick="toggleTocDrawer(event)">📑 目錄</button>
-        <button class="btn secondary" onclick="cycleTheme(event)">🎨 主題</button>
-        <button id="tts-btn" class="btn secondary" onclick="toggleTTS(event)">🎧 朗讀</button>
+        <button id="toc-btn" type="button" class="btn secondary">📑 目錄</button>
+        <button id="theme-btn" type="button" class="btn secondary">🎨 主題</button>
+        <button id="tts-btn" type="button" class="btn secondary">🎧 朗讀</button>
     </div>
 </div>
 
-<!-- In-Reader Table of Contents Drawer -->
-<div id="toc-drawer"></div>
+<!-- Floating Slide-Down Table of Contents Drawer -->
+<div id="toc-drawer">
+    <div class="toc-header">
+        <span>📑 章節目錄 (點擊跳轉)</span>
+        <span id="toc-close-btn" style="cursor:pointer; padding:2px 8px;">✖</span>
+    </div>
+    <div id="toc-list"></div>
+</div>
 
 <!-- Main Touch-to-Pause Reading Area -->
 <div id="reader-viewport">
@@ -634,25 +689,49 @@ reader_html = f"""
 </div>
 
 <script>
-    const allChapters = {chapters_json};
-    const bookName = {json.dumps(selected_book)};
-    const bookStateKey = "hongguo_v2_state_" + bookName;
-    const prefsKey = "hongguo_v2_prefs";
+    // Safely decode Base64 UTF-8 data from Python
+    function decodeB64Utf8(b64Str) {{
+        const binStr = atob(b64Str);
+        const bytes = new Uint8Array(binStr.length);
+        for (let i = 0; i < binStr.length; i++) {{
+            bytes[i] = binStr.charCodeAt(i);
+        }}
+        return new TextDecoder("utf-8").decode(bytes);
+    }}
+
+    const allChapters = JSON.parse(decodeB64Utf8("{chapters_b64}"));
+    const bookName = decodeB64Utf8("{book_name_b64}");
+    const bookStateKey = "hongguo_v3_state_" + bookName;
+    const prefsKey = "hongguo_v3_prefs";
 
     const cloudInitChap = {int(st.session_state.chapter_idx)};
     const cloudInitPct = {float(st.session_state.scroll_pct)};
 
+    const topBar = document.getElementById("top-bar");
     const streamContainer = document.getElementById("chapters-stream");
     const viewport = document.getElementById("reader-viewport");
     const scrollBtn = document.getElementById("scroll-toggle-btn");
+    const speedSlider = document.getElementById("speed-slider");
+    const fontSlider = document.getElementById("font-slider");
+    const brightSlider = document.getElementById("bright-slider");
+    const tocBtn = document.getElementById("toc-btn");
+    const themeBtn = document.getElementById("theme-btn");
     const ttsBtn = document.getElementById("tts-btn");
     const toast = document.getElementById("tap-toast");
     const chapLabel = document.getElementById("chap-status-label");
     const progLabel = document.getElementById("progress-indicator");
     const tocDrawer = document.getElementById("toc-drawer");
+    const tocList = document.getElementById("toc-list");
+    const tocCloseBtn = document.getElementById("toc-close-btn");
     const endBanner = document.getElementById("end-banner");
 
-    // --- 1. PERSISTENT USER PREFERENCES (NEVER RESET ON CHAPTER CHANGE) ---
+    // Prevent any touches/clicks on topBar or tocDrawer from bubbling to viewport
+    topBar.addEventListener("click", (e) => e.stopPropagation());
+    topBar.addEventListener("touchstart", (e) => e.stopPropagation(), {{passive: true}});
+    tocDrawer.addEventListener("click", (e) => e.stopPropagation());
+    tocDrawer.addEventListener("touchstart", (e) => e.stopPropagation(), {{passive: true}});
+
+    // --- 1. PERSISTENT USER PREFERENCES ---
     const themes = ["theme-dark", "theme-day", "theme-green", "theme-sepia"];
     let userPrefs = {{
         speed: {default_speed},
@@ -676,11 +755,11 @@ reader_html = f"""
     }}
 
     function applyPrefsToUI() {{
-        document.getElementById("speed-slider").value = userPrefs.speed;
+        speedSlider.value = userPrefs.speed;
         document.getElementById("speed-val").textContent = userPrefs.speed;
-        document.getElementById("font-slider").value = userPrefs.fontSize;
+        fontSlider.value = userPrefs.fontSize;
         document.getElementById("font-val").textContent = userPrefs.fontSize + "px";
-        document.getElementById("bright-slider").value = userPrefs.brightness;
+        brightSlider.value = userPrefs.brightness;
         document.getElementById("brightness-overlay").style.opacity = ((100 - userPrefs.brightness) / 100.0).toFixed(2);
 
         themes.forEach(t => document.body.classList.remove(t));
@@ -736,7 +815,6 @@ reader_html = f"""
             const nextBlock = createChapterElement(maxLoadedChap);
             streamContainer.appendChild(nextBlock);
             isAppending = false;
-            // If the newly added chapter is very short, check one more time
             if (viewport.scrollHeight - (viewport.scrollTop + viewport.clientHeight) < 900 && maxLoadedChap < allChapters.length - 1) {{
                 appendNextChapterIfNeeded();
             }}
@@ -750,7 +828,6 @@ reader_html = f"""
         maxLoadedChap = startChapIdx - 1;
         activeChapIdx = startChapIdx;
 
-        // Render starting chapter + next chapter immediately so there is always buffer to scroll
         const countToRender = Math.min(2, allChapters.length - startChapIdx);
         for (let i = 0; i < countToRender; i++) {{
             maxLoadedChap += 1;
@@ -771,26 +848,25 @@ reader_html = f"""
         }}, 50);
     }}
 
-    // Build TOC Drawer Items
+    // Build Floating TOC Drawer Items
     function buildTocDrawer() {{
-        tocDrawer.innerHTML = "";
+        tocList.innerHTML = "";
         allChapters.forEach((ch, idx) => {{
             const item = document.createElement("div");
             item.className = "toc-item" + (idx === activeChapIdx ? " active-chap" : "");
             item.id = "toc-item-" + idx;
             item.textContent = `${{idx + 1}}. ${{ch.title}}`;
-            item.onclick = (e) => {{
+            item.addEventListener("click", (e) => {{
                 e.stopPropagation();
                 tocDrawer.style.display = "none";
                 loadStartingFromChapter(idx, 0.0);
                 showToast(`📑 已跳轉至：${{ch.title}}`);
-            }};
-            tocDrawer.appendChild(item);
+            }});
+            tocList.appendChild(item);
         }});
     }}
 
-    function toggleTocDrawer(e) {{
-        if (e) e.stopPropagation();
+    function toggleTocDrawer() {{
         if (tocDrawer.style.display === "block") {{
             tocDrawer.style.display = "none";
         }} else {{
@@ -802,10 +878,19 @@ reader_html = f"""
         }}
     }}
 
+    tocBtn.addEventListener("click", (e) => {{
+        e.stopPropagation();
+        toggleTocDrawer();
+    }});
+    tocCloseBtn.addEventListener("click", (e) => {{
+        e.stopPropagation();
+        tocDrawer.style.display = "none";
+    }});
+
     // Track current visible chapter & percentage inside that chapter
     function updateReadingProgress() {{
         const blocks = document.querySelectorAll(".chapter-block");
-        const probeY = viewport.scrollTop + 140;
+        const probeY = viewport.scrollTop + 120;
         let currentBlock = blocks[0];
 
         for (let i = 0; i < blocks.length; i++) {{
@@ -835,7 +920,7 @@ reader_html = f"""
     }}
 
     // --- 3. INITIALIZE BOOK POSITION ---
-    window.addEventListener("load", () => {{
+    function initReader() {{
         applyPrefsToUI();
         buildTocDrawer();
 
@@ -854,7 +939,7 @@ reader_html = f"""
         }} catch (e) {{}}
 
         loadStartingFromChapter(startChap, startPct);
-    }});
+    }}
 
     // --- 4. SUB-PIXEL SMOOTH AUTOSCROLL ENGINE ---
     let isScrolling = false;
@@ -906,10 +991,10 @@ reader_html = f"""
         }}
     }}
 
-    function toggleScroll(e) {{
-        if (e) e.stopPropagation();
+    scrollBtn.addEventListener("click", (e) => {{
+        e.stopPropagation();
         setScrollingState(!isScrolling);
-    }}
+    }});
 
     // Touch / Click on Reading Viewport to Pause or Resume Instantly
     let touchStartY = 0;
@@ -954,116 +1039,23 @@ reader_html = f"""
         updateReadingProgress();
     }});
 
-    // --- 5. LIVE UI CONTROLS WITH INSTANT MEMORY ---
-    function updateSpeed(val) {{
-        userPrefs.speed = parseInt(val, 10);
-        document.getElementById("speed-val").textContent = val;
+    // --- 5. LIVE UI SLIDERS & THEME BUTTON ---
+    speedSlider.addEventListener("input", (e) => {{
+        userPrefs.speed = parseInt(e.target.value, 10);
+        document.getElementById("speed-val").textContent = userPrefs.speed;
         savePrefs();
-    }}
+    }});
 
-    function updateFont(val) {{
-        userPrefs.fontSize = parseInt(val, 10);
-        document.getElementById("font-val").textContent = val + "px";
+    fontSlider.addEventListener("input", (e) => {{
+        userPrefs.fontSize = parseInt(e.target.value, 10);
+        document.getElementById("font-val").textContent = userPrefs.fontSize + "px";
         document.querySelectorAll("p.novel-para").forEach(p => {{
-            p.style.fontSize = val + "px";
+            p.style.fontSize = userPrefs.fontSize + "px";
         }});
         savePrefs();
-    }}
+    }});
 
-    function updateBrightness(val) {{
-        userPrefs.brightness = parseInt(val, 10);
+    brightSlider.addEventListener("input", (e) => {{
+        userPrefs.brightness = parseInt(e.target.value, 10);
         const overlay = document.getElementById("brightness-overlay");
-        overlay.style.opacity = ((100 - userPrefs.brightness) / 100.0).toFixed(2);
-        savePrefs();
-    }}
-
-    function cycleTheme(e) {{
-        if (e) e.stopPropagation();
-        document.body.classList.remove(themes[userPrefs.themeIdx % themes.length]);
-        userPrefs.themeIdx = (userPrefs.themeIdx + 1) % themes.length;
-        document.body.classList.add(themes[userPrefs.themeIdx]);
-        savePrefs();
-    }}
-
-    // --- 6. CONTINUOUS CROSS-CHAPTER READ ALOUD (TTS) ---
-    let isSpeaking = false;
-    const synth = window.speechSynthesis;
-
-    function getAllRenderedParagraphs() {{
-        return Array.from(document.querySelectorAll("p.novel-para"));
-    }}
-
-    function findFirstVisibleParagraphElement() {{
-        const viewTop = viewport.scrollTop + 90;
-        const allParas = getAllRenderedParagraphs();
-        for (let i = 0; i < allParas.length; i++) {{
-            const el = allParas[i];
-            if ((el.offsetTop + el.offsetHeight) > viewTop) {{
-                return i;
-            }}
-        }}
-        return 0;
-    }}
-
-    function speakRenderedParagraphAt(idx) {{
-        if (!isSpeaking) return;
-        appendNextChapterIfNeeded();
-        const allParas = getAllRenderedParagraphs();
-        if (idx >= allParas.length) {{
-            stopTTS();
-            return;
-        }}
-        allParas.forEach(p => p.classList.remove("speaking-active"));
-        const activeEl = allParas[idx];
-        activeEl.classList.add("speaking-active");
-        activeEl.scrollIntoView({{ behavior: "smooth", block: "center" }});
-
-        const text = activeEl.textContent;
-        const utter = new SpeechSynthesisUtterance(text);
-        const hasChinese = /[\\u4e00-\\u9fa5]/.test(text);
-        utter.lang = hasChinese ? "zh-HK" : "en-US";
-        utter.rate = userPrefs.ttsRate || 1.1;
-
-        utter.onend = () => {{
-            if (isSpeaking) {{
-                speakRenderedParagraphAt(idx + 1);
-            }}
-        }};
-        utter.onerror = () => {{
-            stopTTS();
-        }};
-        synth.speak(utter);
-    }}
-
-    function stopTTS() {{
-        isSpeaking = false;
-        if (synth) synth.cancel();
-        ttsBtn.innerHTML = "🎧 朗讀";
-        document.querySelectorAll("p.novel-para").forEach(p => p.classList.remove("speaking-active"));
-    }}
-
-    function toggleTTS(e) {{
-        if (e) e.stopPropagation();
-        if (!("speechSynthesis" in window)) {{
-            alert("您的瀏覽器不支援內建語音朗讀功能");
-            return;
-        }}
-        if (isSpeaking) {{
-            stopTTS();
-            showToast("🔇 已停止語音朗讀");
-        }} else {{
-            if (isScrolling) setScrollingState(false);
-            isSpeaking = true;
-            ttsBtn.innerHTML = "⏹ 停止朗讀";
-            const startIdx = findFirstVisibleParagraphElement();
-            showToast("🎧 開始跨章連續語音朗讀");
-            synth.cancel();
-            speakRenderedParagraphAt(startIdx);
-        }}
-    }}
-</script>
-</body>
-</html>
-"""
-
-components.html(reader_html, height=860, scrolling=False)
+        overlay.style.opacity = ((100 - us
